@@ -40,7 +40,7 @@ type parseLet<str extends string> = parseTag<
 			]
 			? parseTag<typeRest, "value"> extends [
 					infer value extends string,
-					infer valueRest extends string,
+					infer _,
 				]
 				? [[name, type, value], rest]
 				: never
@@ -48,9 +48,10 @@ type parseLet<str extends string> = parseTag<
 		: never
 	: never;
 
-type parseProgram<
+type runBody<
 	str extends string,
 	acc extends Record<string, string | number> = {},
+	buffer extends string = "",
 > = trimWhitespace<str> extends ""
 	? merge<acc>
 	: parseLet<trimWhitespace<str>> extends [
@@ -61,7 +62,7 @@ type parseProgram<
 				],
 				infer rest extends string,
 			]
-		? parseProgram<
+		? runBody<
 				rest,
 				acc & {
 					[K in name]: getValue<type, value>;
@@ -69,20 +70,29 @@ type parseProgram<
 			>
 		: never;
 
-type result = parseProgram<`
-	<let>
-		<name>something</name>
-		<type>string</type>
-		<value>what</value>
-	</let>
-	<let>
-		<name>bar</name>
-		<type>string</type>
-		<value>what</value>
-	</let>
-	<let>
-			<name>foo</name>
-			<type>number</type>
-			<value>55</value>
-		</let>
+type eval<str extends string> = parseTag<
+	trimWhitespace<str>,
+	"program"
+> extends [infer content extends string, infer _]
+	? runBody<content>
+	: never;
+
+type result = eval<`
+  <program>
+  	<let>
+  		<name>something</name>
+  		<type>string</type>
+  		<value>what</value>
+  	</let>
+  	<let>
+  		<name>bar</name>
+  		<type>string</type>
+  		<value>what</value>
+  	</let>
+  	<let>
+ 			<name>foo</name>
+ 			<type>number</type>
+ 			<value>55</value>
+    </let>
+	</program>
 `>;
