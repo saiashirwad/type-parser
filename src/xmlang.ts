@@ -1,5 +1,34 @@
 export type merge<O> = { [K in keyof O]: O[K] };
 
+type concatStrings<
+	arr extends any[],
+	acc extends string = "",
+> = arr extends []
+	? acc
+	: arr extends [infer x extends string]
+		? concatStrings<[], `${acc}${x}`>
+		: arr extends [
+					infer x extends string,
+					...infer xs extends string[],
+				]
+			? concatStrings<xs, `${acc}${x}`>
+			: never;
+
+type fns = "print" | "add" | "sub";
+
+type execFn<
+	fn extends fns,
+	args extends any[],
+	ctx extends Record<string, string | number>,
+	buffer extends string,
+> = fn extends "print"
+	? _
+	: fn extends "add"
+		? _
+		: fn extends "sub"
+			? _
+			: _;
+
 type getValue<
 	type extends "string" | "number",
 	value extends string | number,
@@ -19,12 +48,35 @@ type trimWhitespace<T extends string> =
 type parseTag<
 	str extends string,
 	tag extends string,
-> = str extends `<${tag}>${infer content}</${tag}>${infer rest}`
+> = trimWhitespace<str> extends `<${tag}>${infer content}</${tag}>${infer rest}`
 	? [trimWhitespace<content>, trimWhitespace<rest>]
 	: never;
 
+type parseFnCall<str extends string> = parseTag<
+	str,
+	"call"
+> extends [
+	infer content extends string,
+	infer rest extends string,
+]
+	? parseTag<content, "fn"> extends [
+			infer fnName extends string,
+			infer fnRest extends string,
+		]
+		? parseFnCallArgs<fnRest> extends infer args extends
+				string[]
+			? [[fnName, args], rest]
+			: never
+		: never
+	: never;
+
+type parseFnCallArgs<
+	str extends string,
+	acc extends string[] = [],
+> = str extends "" ? acc : parseTag<str, "">;
+
 type parseLet<str extends string> = parseTag<
-	trimWhitespace<str>,
+	str,
 	"let"
 > extends [
 	infer content extends string,
@@ -50,11 +102,11 @@ type parseLet<str extends string> = parseTag<
 
 type runBody<
 	str extends string,
-	acc extends Record<string, string | number> = {},
+	ctx extends Record<string, string | number> = {},
 	buffer extends string = "",
 > = trimWhitespace<str> extends ""
-	? merge<acc>
-	: parseLet<trimWhitespace<str>> extends [
+	? merge<ctx>
+	: parseLet<str> extends [
 				[
 					infer name extends string,
 					infer type extends "string" | "number",
@@ -64,14 +116,15 @@ type runBody<
 			]
 		? runBody<
 				rest,
-				acc & {
+				ctx & {
 					[K in name]: getValue<type, value>;
-				}
+				},
+				buffer
 			>
 		: never;
 
 type eval<str extends string> = parseTag<
-	trimWhitespace<str>,
+	str,
 	"program"
 > extends [infer content extends string, infer _]
 	? runBody<content>
@@ -96,3 +149,5 @@ type result = eval<`
     </let>
 	</program>
 `>;
+
+type _ = result;
