@@ -1,10 +1,13 @@
 export type merge<O> = { [K in keyof O]: O[K] };
 
-namespace Functions {
-	export type print<s extends string> = `print ${s}`;
-}
-
-type s = Functions.print<"hello">;
+type getValue<
+	type extends "string" | "number",
+	value extends string | number,
+> = type extends "number"
+	? value extends `${infer value extends number}`
+		? value
+		: never
+	: value;
 
 type trimWhitespace<T extends string> =
 	T extends `${" " | "\n" | "\t"}${infer Rest}`
@@ -20,33 +23,13 @@ type parseTag<
 	? [trimWhitespace<content>, trimWhitespace<rest>]
 	: never;
 
-type parseCall<str extends string> = parseTag<
+type parseLet<str extends string> = parseTag<
 	trimWhitespace<str>,
-	"call"
+	"let"
 > extends [
 	infer content extends string,
 	infer rest extends string,
 ]
-	? parseTag<content, "fn"> extends [
-			infer fn extends string,
-			infer fnRest extends string,
-		]
-		? [fn, fnRest]
-		: never
-	: never;
-
-type callResult = parseCall<`
-	<call>
-		<fn>print</fn>
-		<arg>foo</arg>
-		<arg>bar</arg>
-	</call>
-`>;
-
-type parseLet<str extends string> = parseTag<
-	trimWhitespace<str>,
-	"let"
-> extends [infer content extends string, infer _]
 	? parseTag<content, "name"> extends [
 			infer name extends string,
 			infer nameRest extends string,
@@ -59,32 +42,47 @@ type parseLet<str extends string> = parseTag<
 					infer value extends string,
 					infer valueRest extends string,
 				]
-				? [[name, type, value], valueRest]
+				? [[name, type, value], rest]
 				: never
 			: never
 		: never
 	: never;
 
-type result = parseLet<`
-	<let>
-		<name>foo</name>
-		<type>number</type>
-		<value>42</value>
-	</let>
-`>;
-
-type parseManyLets<
+type parseProgram<
 	str extends string,
-	acc extends [string, "number" | "string", string][],
-> = str extends ""
-	? acc
-	: parseLet<str> extends [
+	acc extends Record<string, string | number> = {},
+> = trimWhitespace<str> extends ""
+	? merge<acc>
+	: parseLet<trimWhitespace<str>> extends [
 				[
 					infer name extends string,
-					infer type extends "number" | "string",
+					infer type extends "string" | "number",
 					infer value extends string,
 				],
 				infer rest extends string,
 			]
-		? parseManyLets<rest, [...acc, [name, type, value]]>
+		? parseProgram<
+				rest,
+				acc & {
+					[K in name]: getValue<type, value>;
+				}
+			>
 		: never;
+
+type result = parseProgram<`
+	<let>
+		<name>something</name>
+		<type>string</type>
+		<value>what</value>
+	</let>
+	<let>
+		<name>bar</name>
+		<type>string</type>
+		<value>what</value>
+	</let>
+	<let>
+			<name>foo</name>
+			<type>number</type>
+			<value>55</value>
+		</let>
+`>;
